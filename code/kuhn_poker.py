@@ -62,7 +62,7 @@ class KuhnCFR:
             for i in range(2):
                 #np.random.permutation(self.cards)
                 random.shuffle(self.cards)
-                util[i] += self.external_cfr(self.cards[:2], [], 2, 0, i, t)
+                util[i] += self.external_cfr(self.cards[:2], [],  2, 0, i, t)
         print('Average game value: {}'.format(util[0]   / (self.iterations)))
 
     def external_cfr(self, cards, history, pot, nodes_touched, traversing_player, t, reach_prob_0=1, reach_prob_1=1):
@@ -89,6 +89,7 @@ class KuhnCFR:
                     return -pot/2 if player_wins else pot/2
 
         # Get information set and create new node if needed
+        print(str(cards[acting_player]) + str(history))
         infoset = str(cards[acting_player]) + str(history)
         if infoset not in self.nodes:
             self.nodes[infoset] = Node(self.bet_options)

@@ -10,33 +10,46 @@ Leduc Rules:
 
 '''
 ACTIONS = 3 # Check/Fold  Bet/Call Reraise
-
+a = {}
 
 class Node:
-  def __init__(self,num_actions):
+  def __init__(self):
+    self.infoset = np.array(object=[], dtype= int) 
     self.num_actions = ACTIONS
-    self.regret_sum = np.zeros(num_actions)
-    self.strategy = np.zeros(num_actions)
-    self.strategy_sum = np.zeros(num_actions)
-    self.num_actions = np.zeros(num_actions)
+    self.regret_sum = np.zeros(self.num_actions)
+    self.strategy = np.zeros(self.num_actions)
+    self.strategy_sum = np.zeros(self.num_actions)
   
-  def get_strategy(self, reaching_prob):
+  def get_strategy(self, reaching_prob:float):
     normalizing_sum = 0
     for a in range(self.num_actions):
       if self.regret_sum[a]>0:
         self.strategy[a] = self.regret_sum[a]
       else:
         self.strategy[a] = 0
-      normalizing_sum +=self.strategy[a]
+      normalizing_sum += self.strategy[a]
     
     for a in range(self.num_actions):
       if normalizing_sum > 0:
         self.strategy[a] /= normalizing_sum
       else:
         self.strategy[a] = 1.0 / self.num_actions
+        self.strategy_sum += reaching_prob* self.strategy[a]
     return self.strategy
   
+
+
+
+
   def get_average_strategy(self):
+    normalizing_sum = 0
+    avg_strategy =  np.zeros(self.num_actions)
+    for a in range(self.num_actions):
+      normalizing_sum += self.strategy[a]
+    for a in range(self.num_actions):
+      avg_strategy[a] = self.strategy[a] /normalizing_sum if normalizing_sum> 0 else 1.0/self.num_actions
+    return avg_strategy
+
       
     
 
@@ -50,3 +63,5 @@ class LeducCFR:
     self.decksize = decksize
     self.cards = np.arange(decksize)
     
+
+a = Node()
