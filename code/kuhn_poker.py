@@ -89,7 +89,6 @@ class KuhnCFR:
                     return -pot/2 if player_wins else pot/2
 
         # Get information set and create new node if needed
-        print(str(cards[acting_player]) + str(history))
         infoset = str(cards[acting_player]) + str(history)
         if infoset not in self.nodes:
             self.nodes[infoset] = Node(self.bet_options)
@@ -135,6 +134,5 @@ class KuhnCFR:
 if __name__ == "__main__":
     k = KuhnCFR(1000000, 3)
     k.cfr_iterations_external()
-    print(k.nodes.values(), k.nodes.keys())
     end_time = time.time()
     print("Elapsed time:", end_time - start_time, "seconds")
