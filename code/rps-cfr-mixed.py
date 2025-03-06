@@ -81,6 +81,6 @@ def main():
     print(f"Rock: {p2_strategy[0]:.3f}")
     print(f"Paper: {p2_strategy[1]:.3f}")
     print(f"Scissors: {p2_strategy[2]:.3f}")
-
+    
 if __name__ == "__main__":
     main()
