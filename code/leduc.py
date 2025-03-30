@@ -35,6 +35,8 @@ class Node:
         self.strategy[a] = 1.0 / self.num_actions
         self.strategy_sum += reaching_prob* self.strategy[a]
     return self.strategy
+
+ 
   
 
 

@@ -67,7 +67,7 @@ def train_two_players(iterations=10000):
 
 def main():
     print("Training two players against each other...")
-    player1, player2 = train_two_players(1000000)
+    player1, player2 = train_two_players(100000)
     
     p1_strategy = player1.get_average_strategy()
     p2_strategy = player2.get_average_strategy()

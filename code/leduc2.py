@@ -108,6 +108,6 @@ class LeducCFR:
 
 
 # Example usage
-cfr = LeducCFR(iterations=300000)
+cfr = LeducCFR(iterations=3000000)
 average_utility = cfr.cfr_iterations_external()
 print(f"Average utility after CFR iterations: {average_utility}")
