@@ -1,41 +1,37 @@
 import numpy as np
+import random
+import time
 
-'''
-Leduc Rules:
-2 rounds, 2-bet limit
-2 suits * 3 cards per = 6 cards
-1st round: 1 chip ante + single card is dealt, chip bet = 2
-2nd round: 1 board card revealed, another betting round, chip bet = 4 
-'''
-
-ACTIONS = ['c', 'b', 'f']  # Check/Call, Bet/Raise, Fold
+# --- Global definitions ---
+# Allowed actions (for both rounds)
+ACTIONS = ['c', 'b', 'f']  # c: check/call, b: bet/raise, f: fold
 NUM_ACTIONS = len(ACTIONS)
 
+# --- Node class ---
 class Node:
-    def __init__(self):
-        self.infoset = ''
-        self.num_actions = NUM_ACTIONS
-        self.regret_sum = np.zeros(self.num_actions)
-        self.strategy = np.zeros(self.num_actions)
-        self.strategy_sum = np.zeros(self.num_actions)
+    def __init__(self, infoset, num_actions=NUM_ACTIONS):
+        self.infoset = infoset
+        self.num_actions = num_actions
+        self.regret_sum = np.zeros(num_actions)
+        self.strategy = np.zeros(num_actions)
+        self.strategy_sum = np.zeros(num_actions)
 
-    def get_strategy(self, reaching_prob: float):
-        normalizing_sum = 0
+    def get_strategy(self, reach_prob=1.0):
+        normalizing_sum = 0.0
         for a in range(self.num_actions):
-            self.strategy[a] = max(self.regret_sum[a], 0)
+            # Use only positive regrets.
+            self.strategy[a] = self.regret_sum[a] if self.regret_sum[a] > 0 else 0.0
             normalizing_sum += self.strategy[a]
-
         for a in range(self.num_actions):
             if normalizing_sum > 0:
                 self.strategy[a] /= normalizing_sum
             else:
                 self.strategy[a] = 1.0 / self.num_actions
-            self.strategy_sum[a] += reaching_prob * self.strategy[a]
-
+            self.strategy_sum[a] += reach_prob * self.strategy[a]
         return self.strategy
 
     def get_average_strategy(self):
-        normalizing_sum = sum(self.strategy_sum)
+        normalizing_sum = np.sum(self.strategy_sum)
         avg_strategy = np.zeros(self.num_actions)
         for a in range(self.num_actions):
             if normalizing_sum > 0:
@@ -44,186 +40,196 @@ class Node:
                 avg_strategy[a] = 1.0 / self.num_actions
         return avg_strategy
 
-
+# --- Leduc Hold’em CFR Implementation ---
 class LeducCFR:
-    def __init__(self, iterations, decksize=6):
+    def __init__(self, iterations):
         self.iterations = iterations
-        self.decksize = decksize
-        self.cards = np.arange(decksize)
-        self.node_map = {}
+        # Leduc deck: 6 cards total (e.g., two cards each of King, Queen, and Jack)
+        self.deck = list(range(6))
+        self.node_map = {}   # dictionary for storing nodes
 
-    def cfr_iterations_external(self):
-        util = np.zeros(2)
-        for _ in range(self.iterations):
-            np.random.shuffle(self.cards)
-            # First 2 cards for players, third is the board card
-            util += self.cfr_iterations_internal(self.cards[:3], '', 1, 1)
+        # Game parameters according to the rules:
+        self.ante = 1        # 1 unit ante per player
+        self.bet_r1 = 2      # Bet size in round 1 is 2 units
+        self.bet_r2 = 4      # Bet size in round 2 is 4 units
+
+    def cfr(self):
+        util = np.zeros(2)  # cumulative utility for players 0 and 1
+        for t in range(1, self.iterations + 1):
+            random.shuffle(self.deck)
+            # Deal private cards:
+            p0_card = self.deck[0]
+            p1_card = self.deck[1]
+            # Initial pot: 2 units (antes from both players)
+            pot = 2 * self.ante
+            history_r1 = ""  # empty betting history for round 1
+
+            # Run external CFR for round 1 for each traversing player.
+            for traversing in [0, 1]:
+                util[traversing] += self.external_cfr_r1(p0_card, p1_card, history_r1, pot, traversing, 1.0, 1.0)
         return util / self.iterations
 
-    def cfr_iterations_internal(self, cards, history, p0, p1):
+    def external_cfr_r1(self, p0_card, p1_card, history, pot, traversing, rp0, rp1):
+        """
+        External CFR recursion for round 1 (private card betting).
+        The information set is defined by the acting player's private card and the round-1 betting history.
+        """
         plays = len(history)
-        current_player = plays % 2
-        
-        # Check if we're in a terminal state
-        if self.is_terminal(history):
-            return self.evaluate_terminal(cards, history)
+        acting = plays % 2  # 0 if player 0 acts, 1 if player 1 acts
 
-        # Determine which round we're in
-        round_num = 0
-        if plays >= 2:
-            # Count number of betting rounds completed
-            round_actions = 0
-            for i in range(len(history)):
-                if history[i] in 'cb':
-                    round_actions += 1
-                # A fold ends everything
-                if history[i] == 'f':
-                    break
-                # If we see a complete round (both players acted, no fold)
-                if round_actions == 2 and i == 1:
-                    round_num = 1
-        
-        # Build information set string - player card + public card (if revealed) + history
-        info_set = str(cards[current_player])
-        if round_num == 1:  # Second round, board card is visible
-            info_set += ":" + str(cards[2])
-        info_set += ":" + history
-        
-        # Get or create the node for this information set
-        if info_set not in self.node_map:
-            node = Node()
-            node.infoset = info_set
-            self.node_map[info_set] = node
-        else:
-            node = self.node_map[info_set]
-
-        # Get current strategy
-        strategy = node.get_strategy(p0 if current_player == 0 else p1)
-        util = np.zeros(NUM_ACTIONS)
-        node_util = 0
-
-        # Recursively compute utility for each action
-        for a, action in enumerate(ACTIONS):
-            if self.is_valid_action(history, action):
-                next_history = history + action
-                if current_player == 0:
-                    util[a] = -self.cfr_iterations_internal(cards, next_history, p0 * strategy[a], p1)[current_player]
-                else:
-                    util[a] = -self.cfr_iterations_internal(cards, next_history, p0, p1 * strategy[a])[current_player]
-                node_util += strategy[a] * util[a]
+        # Terminal condition for round 1:
+        if self.is_terminal_r1(history):
+            if history.endswith('f'):
+                # A fold occurred in round 1.
+                return self.evaluate_terminal_r1(history, pot, p0_card, p1_card, traversing)
             else:
-                # Invalid action (e.g., can't fold when checking is free)
-                util[a] = -1000  # Heavy penalty
+                # No fold: round 1 complete. Proceed to round 2 after revealing a board card.
+                board = random.choice(self.deck[2:])  # choose board from the remaining cards
+                return self.external_cfr_r2(p0_card, p1_card, board, "", pot, traversing, rp0, rp1)
 
-        # Update regrets
-        for a in range(NUM_ACTIONS):
-            if self.is_valid_action(history, action):
+        # Construct information set key.
+        infoset = f"R1|{p0_card if acting==0 else p1_card}|{history}"
+        if infoset not in self.node_map:
+            self.node_map[infoset] = Node(infoset)
+        node = self.node_map[infoset]
+        strategy = node.get_strategy(rp0 if acting==0 else rp1)
+
+        # Traversing player's turn: average over all actions.
+        if acting == traversing:
+            util = np.zeros(NUM_ACTIONS)
+            node_util = 0.0
+            for a in range(NUM_ACTIONS):
+                next_history = history + ACTIONS[a]
+                next_pot = pot
+                if ACTIONS[a] == 'b':
+                    next_pot += self.bet_r1
+                child_util = self.external_cfr_r1(p0_card, p1_card, next_history, next_pot, traversing,
+                                                  rp0 * (strategy[a] if acting == 0 else 1),
+                                                  rp1 * (strategy[a] if acting == 1 else 1))
+                util[a] = child_util
+                node_util += strategy[a] * util[a]
+            # Update regrets weighted by the opponent’s reach probability.
+            opp_rp = rp1 if acting == 0 else rp0
+            for a in range(NUM_ACTIONS):
                 regret = util[a] - node_util
-                node.regret_sum[a] += (p1 if current_player == 0 else p0) * regret
+                node.regret_sum[a] += opp_rp * regret
+            return node_util
+        else:
+            # Opponent's turn: sample a single action according to strategy.
+            node.strategy_sum += strategy
+            a = np.random.choice(NUM_ACTIONS, p=strategy)
+            next_history = history + ACTIONS[a]
+            next_pot = pot
+            if ACTIONS[a] == 'b':
+                next_pot += self.bet_r1
+            return self.external_cfr_r1(p0_card, p1_card, next_history, next_pot, traversing,
+                                        rp0 * (strategy[a] if acting==0 else 1),
+                                        rp1 * (strategy[a] if acting==1 else 1))
 
-        return np.array([node_util, -node_util])
+    def external_cfr_r2(self, p0_card, p1_card, board, history, pot, traversing, rp0, rp1):
+        """
+        External CFR recursion for round 2 (after the board card is revealed).
+        The information set now includes the board card.
+        """
+        plays = len(history)
+        acting = plays % 2
 
-    def is_valid_action(self, history, action):
-        # Basic validation - in a real implementation this would be more detailed
-        if action == 'f' and (len(history) == 0 or history[-1] == 'c'):
-            return False  # Can't fold when checking is free
-        return True
-    
-    def is_terminal(self, history):
-        # A fold always ends the game
-        if 'f' in history:
+        if self.is_terminal_r2(history):
+            return self.evaluate_terminal_r2(history, pot, p0_card, p1_card, board, traversing)
+
+        infoset = f"R2|{p0_card if acting==0 else p1_card}|{board}|{history}"
+        if infoset not in self.node_map:
+            self.node_map[infoset] = Node(infoset)
+        node = self.node_map[infoset]
+        strategy = node.get_strategy(rp0 if acting==0 else rp1)
+
+        if acting == traversing:
+            util = np.zeros(NUM_ACTIONS)
+            node_util = 0.0
+            for a in range(NUM_ACTIONS):
+                next_history = history + ACTIONS[a]
+                next_pot = pot
+                if ACTIONS[a] == 'b':
+                    next_pot += self.bet_r2
+                child_util = self.external_cfr_r2(p0_card, p1_card, board, next_history, next_pot, traversing,
+                                                  rp0 * (strategy[a] if acting==0 else 1),
+                                                  rp1 * (strategy[a] if acting==1 else 1))
+                util[a] = child_util
+                node_util += strategy[a] * util[a]
+            opp_rp = rp1 if acting==0 else rp0
+            for a in range(NUM_ACTIONS):
+                regret = util[a] - node_util
+                node.regret_sum[a] += opp_rp * regret
+            return node_util
+        else:
+            node.strategy_sum += strategy
+            a = np.random.choice(NUM_ACTIONS, p=strategy)
+            next_history = history + ACTIONS[a]
+            next_pot = pot
+            if ACTIONS[a] == 'b':
+                next_pot += self.bet_r2
+            return self.external_cfr_r2(p0_card, p1_card, board, next_history, next_pot, traversing,
+                                        rp0 * (strategy[a] if acting==0 else 1),
+                                        rp1 * (strategy[a] if acting==1 else 1))
+
+    # --- Terminal conditions ---
+    def is_terminal_r1(self, history):
+        # In round 1, any fold terminates immediately.
+        if history.endswith('f'):
             return True
-            
-        # Count actions in the history
-        if len(history) < 2:
-            return False  # Need at least 2 actions to end a round
-            
-        # Check if we've completed two rounds
-        round1_complete = False
-        actions_count = 0
-        
-        for i, action in enumerate(history):
-            if action in 'cb':
-                actions_count += 1
-            
-            # First round ends after both players have acted
-            if actions_count == 2 and not round1_complete:
-                round1_complete = True
-                actions_count = 0
-            
-            # Second round ends after both players have acted
-            elif actions_count == 2 and round1_complete:
-                return True
-                
-        # Additional checks for round completion with raises
-        # This is simplified - a full implementation would track bets more carefully
-        if 'bb' in history[-2:] or ('bc' in history[-2:] and round1_complete):
+        # In our simplified model, we let round 1 end when both players have acted.
+        if len(history) >= 2:
             return True
-            
         return False
 
-    def evaluate_terminal(self, cards, history):
-        # Check if someone folded
-        if 'f' in history:
-            folding_player = history.rfind('f')
-            # The player who didn't fold wins the pot
-            winner = (folding_player + 1) % 2
-            pot = 2  # Antes
-            # Count bets
-            for action in history:
-                if action == 'b':
-                    pot += 2  # First round bet
-                    if history.index(action) > 2:  # Assuming second round starts after 2 actions
-                        pot += 2  # Additional for second round bet
-            return np.array([pot if winner == 0 else -pot, -pot if winner == 0 else pot])
-        
-        # Otherwise, compare hands
-        player0_card = cards[0] % 3  # Get card rank (0, 1, or 2)
-        player1_card = cards[1] % 3
-        board_card = cards[2] % 3
-        
-        # Check for pairs
-        if player0_card == board_card and player1_card != board_card:
-            winner = 0
-        elif player1_card == board_card and player0_card != board_card:
-            winner = 1
-        # High card wins
-        elif player0_card > player1_card:
-            winner = 0
-        elif player1_card > player0_card:
-            winner = 1
+    def is_terminal_r2(self, history):
+        # In round 2, a fold terminates the round.
+        if history.endswith('f'):
+            return True
+        # Otherwise, assume round 2 ends when both players have acted.
+        if len(history) >= 2:
+            return True
+        return False
+
+    # --- Terminal evaluations ---
+    def evaluate_terminal_r1(self, history, pot, p0_card, p1_card, traversing):
+        # If a fold occurred in round 1, the player who acted last folded.
+        folded = (len(history) - 1) % 2
+        winner = 1 - folded
+        return pot if winner == traversing else -pot
+
+    def evaluate_terminal_r2(self, history, pot, p0_card, p1_card, board, traversing):
+        if history.endswith('f'):
+            # A fold occurred in round 2.
+            folded = (len(history) - 1) % 2
+            winner = 1 - folded
+            return pot if winner == traversing else -pot
         else:
-            # Tie (this shouldn't happen in standard Leduc)
-            return np.zeros(2)
-            
-        # Calculate pot
-        pot = 2  # Antes
-        first_round_bets = 0
-        second_round_bets = 0
-        
-        round1_complete = False
-        actions_count = 0
-        
-        for action in history:
-            if action == 'b':
-                if not round1_complete:
-                    first_round_bets += 2
+            # Showdown: determine winning hand based on the rules.
+            # A player's hand "pairs" with the board if their private card’s rank equals the board’s rank.
+            p0_pair = (p0_card // 2 == board // 2)
+            p1_pair = (p1_card // 2 == board // 2)
+            if p0_pair and not p1_pair:
+                winner = 0
+            elif p1_pair and not p0_pair:
+                winner = 1
+            else:
+                # Either both have pairing or neither does.
+                # In that case, the higher rank wins.
+                if (p0_card // 2) > (p1_card // 2):
+                    winner = 0
+                elif (p1_card // 2) > (p0_card // 2):
+                    winner = 1
                 else:
-                    second_round_bets += 4
-            
-            if action in 'cb':
-                actions_count += 1
-            
-            if actions_count == 2 and not round1_complete:
-                round1_complete = True
-                actions_count = 0
-                
-        pot += first_round_bets + second_round_bets
-            
-        return np.array([pot if winner == 0 else -pot, -pot if winner == 0 else pot])
+                    # Exact tie leads to zero net payoff.
+                    return 0
+            return pot if winner == traversing else -pot
 
-
-# Example usage
-cfr = LeducCFR(iterations=200000)  # Reduced for example
-average_utility = cfr.cfr_iterations_external()
-print(f"Average utility after CFR iterations: {average_utility}")
+# --- Running the algorithm ---
+if __name__ == "__main__":
+    start_time = time.time()
+    iterations = 300000
+    leduc = LeducCFR(iterations)
+    avg_util = leduc.cfr()
+    print(f"Average utility after {iterations} CFR iterations: {avg_util}")
+    print("Elapsed time:", time.time() - start_time, "seconds")

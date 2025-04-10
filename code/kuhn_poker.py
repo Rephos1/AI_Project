@@ -50,7 +50,6 @@ class Node:
 
 class KuhnCFR:
     def __init__(self, iterations, decksize):
-        self.nbets = 1
         self.iterations = iterations
         self.cards = np.arange(decksize)
         self.bet_options = 2  # Check/fold (0) or Bet/call (1)
@@ -127,12 +126,13 @@ class KuhnCFR:
             
             # Accumulate strategy
             self.nodes[infoset].strategy_sum += strategy
-            
             return self.external_cfr(cards, next_history, next_pot, nodes_touched, traversing_player, t)
 
 
 if __name__ == "__main__":
-    k = KuhnCFR(1000000, 3)
+    k = KuhnCFR(100000, 3)
     k.cfr_iterations_external()
     end_time = time.time()
     print("Elapsed time:", end_time - start_time, "seconds")
+    print(k.nodes.keys())
+    print(k.nodes.items())

@@ -13,7 +13,7 @@ ACTIONS = 3 # Check/Fold  Bet/Call Reraise
 
 class Node:
   def __init__(self):
-    self.infoset = '' 
+    self.infoset= '' 
     self.num_actions = ACTIONS
     self.regret_sum = np.zeros(self.num_actions)
     self.strategy = np.zeros(self.num_actions)
@@ -35,9 +35,6 @@ class Node:
         self.strategy[a] = 1.0 / self.num_actions
         self.strategy_sum += reaching_prob* self.strategy[a]
     return self.strategy
-
- 
-  
 
 
   def get_average_strategy(self):
@@ -61,6 +58,10 @@ class LeducCFR:
     self.iterations = iterations
     self.decksize = decksize
     self.cards = np.arange(decksize)
+    self.bet_options = 3 
+    self.infoset = {}
+
+
   
   def cfr_iterations_external(self):
     util = np.zeros(2)
@@ -73,4 +74,11 @@ class LeducCFR:
     plays = len(history)
     player = plays % 2
     opponent = 1 - player 
+    
+    '''Checks for leduc:
+       1.if h ends with 'f' 
+       2.have 'b','c','f' as actions
+       3. separate rounds with 'r'
+       4. if r2 and h[-1] =='f' or h == 'cbb' or h == 'cbc' or h == 'cc' or 'h == bc' or h == 'bbc'
+       '''
     
