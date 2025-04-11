@@ -88,7 +88,10 @@ class KuhnCFR:
                     return -pot/2 if player_wins else pot/2
 
         # Get information set and create new node if needed
-        infoset = str(cards[acting_player]) + str(history)
+        # infoset = str(cards[acting_player]) + str(history)
+        # For kuhn_evaluation
+        infoset = str(cards[acting_player]) + ''.join(map(str, history))
+
         if infoset not in self.nodes:
             self.nodes[infoset] = Node(self.bet_options)
 
