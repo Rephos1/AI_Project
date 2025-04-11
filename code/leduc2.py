@@ -225,7 +225,7 @@ class LeducCFR:
 # --- Running the algorithm ---
 if __name__ == "__main__":
     start_time = time.time()
-    iterations = 300000
+    iterations = 100000
     leduc = LeducCFR(iterations)
     avg_util = leduc.cfr()
     print(f"Average utility after {iterations} CFR iterations: {avg_util}")
