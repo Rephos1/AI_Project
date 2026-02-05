@@ -144,6 +144,8 @@ def analyze_deck_size_impact(iterations=10000, deck_sizes=[2, 3, 4, 5], runs=3):
             card_variances = {}
             for card, strategies in card_strategies.items():
                 if strategies:
+                    # Stack strategies and calculate variance
+                    # Each strategy is a list of probabilities for actions
                     stacked = np.vstack(strategies)
                     variance = np.mean(np.var(stacked, axis=0))
                     card_variances[card] = variance
@@ -480,7 +482,7 @@ if __name__ == "__main__":
     
     # 1. Test convergence over different iteration counts
     print("\n1. Testing convergence over different iteration counts...")
-    iterations_list = [100, 500, 1000, 5000, 10000, 50000]
+    iterations_list = [100, 500, 1000, 5000, 10000, 100000]
     convergence_results = evaluate_convergence(iterations_list, decksize=3, runs=3)
     plot_convergence_results(convergence_results)
     print("Convergence analysis complete. See cfr_convergence_analysis.png")
@@ -493,26 +495,27 @@ if __name__ == "__main__":
     
     # 3. Analyze impact of deck size
     print("\n3. Analyzing impact of deck size...")
-    deck_size_results = analyze_deck_size_impact(iterations=5000, deck_sizes=[2, 3, 4, 5], runs=3)
+    deck_size_results = analyze_deck_size_impact(iterations=50000, deck_sizes=[2, 3, 4, 5], runs=3)
     plot_deck_size_impact(deck_size_results)
     print("Deck size impact analysis complete. See deck_size_impact.png")
     
     # 4. Visualize final strategies
     print("\n4. Visualizing final strategies...")
-    final_cfr = KuhnCFR(50000, 3)
+    iters = 50000
+    final_cfr = KuhnCFR(iters, 3)
     final_cfr.cfr_iterations_external()
-    visualize_strategies(final_cfr, title='Final Strategies after 50,000 Iterations')
+    visualize_strategies(final_cfr, title=f'Final Strategies after {iters} Iterations')
     print("Strategy visualization complete. See cfr_strategies_visualization.png")
     
     # 5. Nash equilibrium analysis
     print("\n5. Performing Nash equilibrium analysis...")
-    nash_results = nash_equilibrium_analysis(iterations=50000)
+    nash_results = nash_equilibrium_analysis(iterations=500000)
     
     # Calculate overall deviation metrics
     avg_kl = nash_results['kl_divergence'].mean()
     avg_l1 = nash_results['l1_distance'].mean()
-    print(f"Average KL divergence from Nash equilibrium: {avg_kl:.4f}")
-    print(f"Average L1 distance from Nash equilibrium: {avg_l1:.4f}")
+    print(f"Average KL divergence from Nash equilibrium: {avg_kl:.4f}") #  sum(p * log(p/q)) 
+    print(f"Average L1 distance from Nash equilibrium: {avg_l1:.4f}") #sum(|p - q|)
     print("Nash equilibrium analysis complete. See nash_equilibrium_comparison.png")
     
     print("\nAll evaluations complete!")

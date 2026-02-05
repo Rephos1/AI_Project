@@ -16,7 +16,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
 # Import the LeducCFR class from the parent directory
-from leduc2 import LeducCFR, Node, ACTIONS
+from leduc_holdem import LeducCFR, Node, ACTIONS
 
 class LeducEvaluator:
     """
@@ -589,7 +589,7 @@ def main():
     evaluator.run_evaluation()
     
     # Analyze final strategy
-    evaluator.analyze_strategy(iterations=10000)
+    evaluator.analyze_strategy(iterations=5000)
     
     # Evaluate against simple agents
     evaluator.evaluate_vs_simple_agent(iterations=10000, eval_games=1000)
